@@ -1,0 +1,12 @@
+C:\Users\chm\source\repos\LiveTiming\LiveTiming\obj\Debug\LiveTiming.csprojAssemblyReference.cache
+C:\Users\chm\source\repos\LiveTiming\LiveTiming\obj\Debug\LiveTiming.csproj.CoreCompileInputs.cache
+C:\Users\chm\source\repos\LiveTiming\LiveTiming\bin\Debug\LiveTiming.exe.config
+C:\Users\chm\source\repos\LiveTiming\LiveTiming\bin\Debug\LiveTiming.exe
+C:\Users\chm\source\repos\LiveTiming\LiveTiming\bin\Debug\LiveTiming.pdb
+C:\Users\chm\source\repos\LiveTiming\LiveTiming\obj\Debug\LiveTiming.exe
+C:\Users\chm\source\repos\LiveTiming\LiveTiming\obj\Debug\LiveTiming.pdb
+C:\Users\chm\source\repos\LiveTiming\LiveTiming\bin\Debug\Nancy.dll
+C:\Users\chm\source\repos\LiveTiming\LiveTiming\bin\Debug\Nancy.xml
+C:\Users\chm\source\repos\LiveTiming\LiveTiming\obj\Debug\LiveTiming.csproj.CopyComplete
+C:\Users\chm\source\repos\LiveTiming\LiveTiming\bin\Debug\Nancy.Hosting.Self.dll
+C:\Users\chm\source\repos\LiveTiming\LiveTiming\bin\Debug\Nancy.Hosting.Self.xml
