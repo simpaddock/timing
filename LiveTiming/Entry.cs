@@ -46,5 +46,6 @@ namespace LiveTiming
         public double LastLap { get; set; }
         public String VehicleName { get; set; }
         public int Number { get; set; }
+        public String NumberFormat { get; set; }
     }
 }

@@ -10,6 +10,9 @@ using static rF2SMMonitor.rFactor2Constants;
 using Nancy;
 using Nancy.Hosting.Self;
 using System.Web.Script.Serialization;
+using System.Net;
+using System.IO;
+using Newtonsoft.Json.Linq;
 
 namespace LiveTiming
 {
@@ -25,15 +28,22 @@ namespace LiveTiming
         rF2Scoring scoring = new rF2Scoring();
         rF2Rules rules = new rF2Rules();
         rF2Extended extended = new rF2Extended();
+        JArray entries;
         public Timing()
         {
             this.telemetryBuffer.Connect();
             this.scoringBuffer.Connect();
             this.rulesBuffer.Connect();
             this.extendedBuffer.Connect();
+            var serializer = new JavaScriptSerializer(); //using System.Web.Script.Serialization;
+
+            String raw = this.GetEntries("http://localhost:8000/api/entries/2");
+            entries = JArray.Parse(raw);
+
+
             Options["/{catchAll*}"] = parameters =>
             {
-                return new Response { StatusCode = HttpStatusCode.Accepted };
+                return new Response { StatusCode = Nancy.HttpStatusCode.Accepted };
             };
 
             After += (Context) =>
@@ -42,11 +52,7 @@ namespace LiveTiming
                 Context.Response.Headers.Add("Access-Control-Allow-Methods", "PUT, GET, POST, DELETE, OPTIONS");
                 Context.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, x-requested-with, Authorization, Accept, Origin");
             };
-            Get["/"] = _ => { return new JavaScriptSerializer().Serialize(new ApiResponse()
-            {
-                Drivers = this.getData().ToArray(),
-                Session = new Session()
-            }); };
+            Get["/"] = _ => { Console.WriteLine("jfklas"); return new JavaScriptSerializer().Serialize(this.getData()); };
         }
         ~Timing()
         {
@@ -55,22 +61,42 @@ namespace LiveTiming
             this.rulesBuffer.Disconnect();
             this.extendedBuffer.Disconnect();
         }
-
-
-        List<Entry> getData()
+        public string GetEntries(string uri)
         {
+            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(uri);
+            request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
 
+            using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+            using (Stream stream = response.GetResponseStream())
+            using (StreamReader reader = new StreamReader(stream))
+            {
+                return reader.ReadToEnd();
+            }
+        }
+
+        ApiResponse getData()
+        {
+            ApiResponse res = new ApiResponse();
             Console.Clear();
             this.extendedBuffer.GetMappedData(ref extended);
             this.scoringBuffer.GetMappedData(ref scoring);
             this.telemetryBuffer.GetMappedData(ref telemetry);
             this.rulesBuffer.GetMappedData(ref rules);
             Console.WriteLine("Flag {0}", scoring.mScoringInfo.mYellowFlagState);
-            foreach(sbyte flag in scoring.mScoringInfo.mSectorFlag)
+            //endet
+            res.Session = new LiveTiming.Session
+            {
+                MaxLaps = scoring.mScoringInfo.mMaxLaps,
+                MaxTime = scoring.mScoringInfo.mEndET,
+                CurrentTime = scoring.mScoringInfo.mCurrentET,
+                CurrentLaps = 0
+            };
+
+            foreach (sbyte flag in scoring.mScoringInfo.mSectorFlag)
             {
                 rF2YellowFlagState state = (rF2YellowFlagState)flag;
 
-                Console.WriteLine("Flag {0}",(rF2YellowFlagState)flag);
+                Console.WriteLine("Flag {0}", (rF2YellowFlagState)flag);
 
             }
             List<Entry> entries = new List<Entry>();
@@ -78,7 +104,9 @@ namespace LiveTiming
             {
                 rF2VehicleScoring vehicle = scoring.mVehicles[i];
                 rF2VehicleTelemetry vehicleTelementry = telemetry.mVehicles[i];
-                rF2Vec3 velocity = vehicle.mLocalVel;
+                rF2TrackRulesParticipant participant = rules.mParticipants[i];
+
+
                 String[] nameParts = this.GetStringFromBytes(vehicle.mDriverName).Split(' ');
 
                 String vehicleName = this.GetStringFromBytes(vehicleTelementry.mVehicleName);
@@ -92,10 +120,22 @@ namespace LiveTiming
                 {
 
                 }
+                String teamName = this.GetStringFromBytes(vehicle.mPitGroup);
+                String format = "{0}";
+
+                foreach(JObject driverEntry in this.entries.Children())
+                {
+                    if (driverEntry["driverNumber"].ToString() == number.ToString())
+                    {
+                        teamName = driverEntry["teamName"].ToString();
+                        format = driverEntry["driverNumberFormat"].ToString();
+                    }
+                }
                 Entry entry = new Entry
                 {
-                    TeamName = "Iwo im RAM",
-                    VehicleName = vehicleNameParts.Length > 1 ? vehicleNameParts[0]: vehicleName,
+                    TeamName = teamName,
+                    VehicleName = vehicleNameParts.Length > 1 ? vehicleNameParts[0] : vehicleName,
+                    NumberFormat = format,
                     Number = number,
                     FirstName = nameParts.Length > 1 ? nameParts[0] : "",
                     LastName = nameParts.Length > 1 ? nameParts[1] : nameParts[0],
@@ -103,11 +143,11 @@ namespace LiveTiming
                     EntryClass = this.GetStringFromBytes(vehicle.mVehicleClass),
                     FrontTires = this.GetStringFromBytes(vehicleTelementry.mFrontTireCompoundName),
                     RearTires = this.GetStringFromBytes(vehicleTelementry.mRearTireCompoundName),
-                    PitState  =  Constants.PitStates[vehicle.mPitState],
+                    PitState = Constants.PitStates[vehicle.mPitState],
                     TimeBehind = vehicle.mTimeBehindNext,
                     LapsBehind = vehicle.mLapsBehindNext,
                     Stops = vehicle.mNumPitstops,
-                    Status = Constants.PitStates[vehicle.mFinishStatus],
+                    Status = Constants.Status[vehicle.mFinishStatus],
                     PositionDifference = vehicle.mQualification - vehicle.mPlace,
                     LastSectorTimes = new double[]
                     {
@@ -125,9 +165,14 @@ namespace LiveTiming
                     LastLap = vehicle.mLastLapTime,
                     Laps = vehicle.mTotalLaps
                 };
+                if (entry.Position == 1)
+                {
+                    res.Session.CurrentLaps = entry.Laps;
+                }
                 entries.Add(entry);
             }
-            return entries;
+            res.Drivers = entries.ToArray();
+            return res;
         }
         private string GetStringFromBytes(byte[] bytes)
         {
