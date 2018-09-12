@@ -29,6 +29,7 @@ namespace LiveTiming
         rF2Rules rules = new rF2Rules();
         rF2Extended extended = new rF2Extended();
         JArray entries;
+        JObject parsedJSON;
         public Timing()
         {
             this.telemetryBuffer.Connect();
@@ -38,7 +39,8 @@ namespace LiveTiming
             var serializer = new JavaScriptSerializer(); //using System.Web.Script.Serialization;
 
             String raw = this.GetEntries("http://localhost:8000/api/entries/2");
-            entries = JArray.Parse(raw);
+            parsedJSON = JObject.Parse(raw);
+            entries = (JArray)parsedJSON["entries"];
 
 
             Options["/{catchAll*}"] = parameters =>
@@ -172,6 +174,7 @@ namespace LiveTiming
                 entries.Add(entry);
             }
             res.Drivers = entries.ToArray();
+            res.RaceOverlayControlSet = this.parsedJSON["controlSet"].ToString();
             return res;
         }
         private string GetStringFromBytes(byte[] bytes)
