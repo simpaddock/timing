@@ -11,5 +11,7 @@ namespace LiveTiming
         public Session Session;
         public Entry[] Drivers;
         public String RaceOverlayControlSet; // JSON, because general purpose
+        public int SlotId;
+        public int CameraId;
     }
 }

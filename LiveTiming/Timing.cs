@@ -135,6 +135,7 @@ namespace LiveTiming
                 }
                 Entry entry = new Entry
                 {
+                    SlotID = vehicle.mID,
                     TeamName = teamName,
                     VehicleName = vehicleNameParts.Length > 1 ? vehicleNameParts[0] : vehicleName,
                     NumberFormat = format,
@@ -175,6 +176,25 @@ namespace LiveTiming
             }
             res.Drivers = entries.ToArray();
             res.RaceOverlayControlSet = this.parsedJSON["controlSet"].ToString();
+            // Translate the slot id (wich means the position) to the proper rfactor 2 id:
+            foreach(Entry driver in res.Drivers)
+            {
+                if (driver.Position == Convert.ToInt32(this.parsedJSON["slotId"].ToString())){
+                    res.SlotId = driver.SlotID;
+                }
+            }
+            res.CameraId = Convert.ToInt32(this.parsedJSON["cameraId"].ToString());
+            // Write control file for rfactor plugin
+            // TODO: ADD A PROPER TIMEOUT
+            try
+            {
+                string[] lines = { res.SlotId.ToString(), res.CameraId.ToString() };
+                System.IO.File.WriteAllLines(@"C:\Users\chm\AppData\Local\Temp\timing.txt", lines);
+            }
+            catch
+            {
+
+            }
             return res;
         }
         private string GetStringFromBytes(byte[] bytes)
