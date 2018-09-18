@@ -6,24 +6,6 @@ using System.Threading.Tasks;
 
 namespace LiveTiming
 {
-    static class Constants
-    {
-        public static String[] PitStates =
-        {
-            "None",
-            "Request",
-            "Entering",
-            "Stopped",
-            "Exiting"
-        };
-        public static String[] Status =
-        {
-            "None",
-            "Finished",
-            "DNF",
-            "DQ"
-        };
-    }
     class Entry
     {
         public int SlotID { get; set; }

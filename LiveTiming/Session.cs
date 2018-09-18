@@ -13,5 +13,6 @@ namespace LiveTiming
         public int CurrentLaps { get; set; }
         public double MaxTime { get; set; }
         public double CurrentTime { get; set; }
+        public bool IsRace { get; set; }
     }
 }

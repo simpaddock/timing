@@ -30,6 +30,7 @@ namespace LiveTiming
         rF2Extended extended = new rF2Extended();
         JArray entries;
         JObject parsedJSON;
+        ApiResponse lastResponse;
         public Timing()
         {
             this.telemetryBuffer.Connect();
@@ -38,7 +39,7 @@ namespace LiveTiming
             this.extendedBuffer.Connect();
             var serializer = new JavaScriptSerializer(); //using System.Web.Script.Serialization;
 
-            String raw = this.GetEntries("http://localhost:8000/api/entries/2");
+            String raw = this.GetEntries(Constants.PADDOCKURL);
             parsedJSON = JObject.Parse(raw);
             entries = (JArray)parsedJSON["entries"];
 
@@ -54,7 +55,7 @@ namespace LiveTiming
                 Context.Response.Headers.Add("Access-Control-Allow-Methods", "PUT, GET, POST, DELETE, OPTIONS");
                 Context.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, x-requested-with, Authorization, Accept, Origin");
             };
-            Get["/"] = _ => { Console.WriteLine("jfklas"); return new JavaScriptSerializer().Serialize(this.getData()); };
+            Get["/"] = _ => { return new JavaScriptSerializer().Serialize(this.getData()); };
         }
         ~Timing()
         {
@@ -65,14 +66,21 @@ namespace LiveTiming
         }
         public string GetEntries(string uri)
         {
-            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(uri);
-            request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
-
-            using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
-            using (Stream stream = response.GetResponseStream())
-            using (StreamReader reader = new StreamReader(stream))
+            try
             {
-                return reader.ReadToEnd();
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(uri);
+                request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
+
+                using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                using (Stream stream = response.GetResponseStream())
+                using (StreamReader reader = new StreamReader(stream))
+                {
+                    return reader.ReadToEnd();
+                }
+            }
+            catch
+            {
+                return "";
             }
         }
 
@@ -84,16 +92,22 @@ namespace LiveTiming
             this.scoringBuffer.GetMappedData(ref scoring);
             this.telemetryBuffer.GetMappedData(ref telemetry);
             this.rulesBuffer.GetMappedData(ref rules);
-            Console.WriteLine("Flag {0}", scoring.mScoringInfo.mYellowFlagState);
+            
             //endet
             res.Session = new LiveTiming.Session
             {
                 MaxLaps = scoring.mScoringInfo.mMaxLaps,
-                MaxTime = scoring.mScoringInfo.mEndET,
-                CurrentTime = scoring.mScoringInfo.mCurrentET,
-                CurrentLaps = 0
+                MaxTime = scoring.mScoringInfo.mEndET - Constants.MAXTIMECOUNTDOWN, // I assume that the seconds are just becaus of the red light countdown until the lights go on
+                CurrentTime = Math.Floor(scoring.mScoringInfo.mCurrentET),
+                CurrentLaps = 0,
+                YellowFlags = new bool[3],
+                IsRace = scoring.mScoringInfo.mSession >= 10 && scoring.mScoringInfo.mSession <= 13
             };
-
+            for (int i = 0; i < 3; i++)
+            {
+                int raw = Convert.ToInt32(scoring.mScoringInfo.mSectorFlag[i]);
+                res.Session.YellowFlags[i] = raw != 11;
+            }
             foreach (sbyte flag in scoring.mScoringInfo.mSectorFlag)
             {
                 rF2YellowFlagState state = (rF2YellowFlagState)flag;
@@ -106,6 +120,8 @@ namespace LiveTiming
             {
                 rF2VehicleScoring vehicle = scoring.mVehicles[i];
                 rF2VehicleTelemetry vehicleTelementry = telemetry.mVehicles[i];
+                dynamic foo = vehicle.mTrackEdge; //??
+                Console.WriteLine(foo);
                 rF2TrackRulesParticipant participant = rules.mParticipants[i];
 
 
@@ -176,25 +192,58 @@ namespace LiveTiming
             }
             res.Drivers = entries.ToArray();
             res.RaceOverlayControlSet = this.parsedJSON["controlSet"].ToString();
+            res.CommandId = Convert.ToInt32(this.parsedJSON["commandId"]);
             // Translate the slot id (wich means the position) to the proper rfactor 2 id:
-            foreach(Entry driver in res.Drivers)
+            bool driverFound = false;
+            if (res.RaceOverlayControlSet.IndexOf("currentDriver") != -1)
             {
-                if (driver.Position == Convert.ToInt32(this.parsedJSON["slotId"].ToString())){
-                    res.SlotId = driver.SlotID;
+                String driverName = JObject.Parse(res.RaceOverlayControlSet)["currentDriver"].ToString();
+                foreach (Entry driver in res.Drivers)
+                {
+                    if (driver.FirstName + " " + driver.LastName == driverName )
+                    {
+                        res.SlotId = driver.SlotID;
+                        driverFound = true;
+                        break;
+                    }
+                }
+            } else
+            {
+                foreach (Entry driver in res.Drivers)
+                {
+                    if (driver.Position == Convert.ToInt32(this.parsedJSON["slotId"].ToString()))
+                    {
+                        res.SlotId = driver.SlotID;
+                        driverFound = true;
+                        break;
+                    }
                 }
             }
+
+            res.SlotId = this.lastResponse != null && res.SlotId == 0 ? this.lastResponse.SlotId : res.SlotId;
             res.CameraId = Convert.ToInt32(this.parsedJSON["cameraId"].ToString());
+            if (!driverFound && this.lastResponse != null)
+            {
+                res.SlotId = this.lastResponse.SlotId;
+                res.CameraId = this.lastResponse.CameraId;
+                res.CommandId = this.lastResponse.CameraId;
+            }
             // Write control file for rfactor plugin
             // TODO: ADD A PROPER TIMEOUT
             try
             {
-                string[] lines = { res.SlotId.ToString(), res.CameraId.ToString() };
-                System.IO.File.WriteAllLines(@"C:\Users\chm\AppData\Local\Temp\timing.txt", lines);
+                if (this.lastResponse == null || this.lastResponse.CameraId != res.CameraId || this.lastResponse.SlotId != res.SlotId)
+                {
+                    string[] lines = { res.SlotId.ToString(), res.CameraId.ToString() };
+                    String path = Path.Combine(Path.GetTempPath(), "cameraslots.txt");
+                    System.IO.File.WriteAllLines(path, lines);
+                }
             }
             catch
             {
 
             }
+            this.lastResponse = res;
             return res;
         }
         private string GetStringFromBytes(byte[] bytes)

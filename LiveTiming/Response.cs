@@ -13,5 +13,6 @@ namespace LiveTiming
         public String RaceOverlayControlSet; // JSON, because general purpose
         public int SlotId;
         public int CameraId;
+        public int CommandId; // to see if something changed..
     }
 }
