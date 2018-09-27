@@ -18,6 +18,7 @@ namespace LiveTiming
         public String RearTires { get; set; }
         public String PitState { get; set; }
         public double TimeBehind { get; set; }
+        public string TimeBehindString { get; set; }
         public int LapsBehind { get; set; }
         public int Stops { get; set; }
         public int Laps { get; set; }
@@ -27,8 +28,13 @@ namespace LiveTiming
         public double[] BestSectorTimes { get; set; }
         public double BestLap { get; set; }
         public double LastLap { get; set; }
+        public string LastLapString { get; set; }
+        public string BestLapString { get; set; }
+        public double BestLapDelta { get; set; }
+        public string BestLapDeltaString { get; set; }
         public String VehicleName { get; set; }
         public int Number { get; set; }
         public String NumberFormat { get; set; }
+        public int CurrentSessionPositionDifference { get; set; }
     }
 }

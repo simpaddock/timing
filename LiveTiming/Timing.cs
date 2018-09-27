@@ -18,25 +18,11 @@ namespace LiveTiming
 {
     public class Timing : NancyModule
     {
-        MappedBuffer<rF2Telemetry> telemetryBuffer = new MappedBuffer<rF2Telemetry>(rFactor2Constants.MM_TELEMETRY_FILE_NAME, true /*partial*/, true /*skipUnchanged*/);
-        MappedBuffer<rF2Scoring> scoringBuffer = new MappedBuffer<rF2Scoring>(rFactor2Constants.MM_SCORING_FILE_NAME, true /*partial*/, true /*skipUnchanged*/);
-        MappedBuffer<rF2Rules> rulesBuffer = new MappedBuffer<rF2Rules>(rFactor2Constants.MM_RULES_FILE_NAME, true /*partial*/, true /*skipUnchanged*/);
-        MappedBuffer<rF2Extended> extendedBuffer = new MappedBuffer<rF2Extended>(rFactor2Constants.MM_EXTENDED_FILE_NAME, false /*partial*/, true /*skipUnchanged*/);
-
-
-        rF2Telemetry telemetry = new rF2Telemetry();
-        rF2Scoring scoring = new rF2Scoring();
-        rF2Rules rules = new rF2Rules();
-        rF2Extended extended = new rF2Extended();
         JArray entries;
         JObject parsedJSON;
-        ApiResponse lastResponse;
         public Timing()
-        {
-            this.telemetryBuffer.Connect();
-            this.scoringBuffer.Connect();
-            this.rulesBuffer.Connect();
-            this.extendedBuffer.Connect();
+        { 
+
             var serializer = new JavaScriptSerializer(); //using System.Web.Script.Serialization;
 
             String raw = this.GetEntries(Constants.PADDOCKURL);
@@ -55,14 +41,8 @@ namespace LiveTiming
                 Context.Response.Headers.Add("Access-Control-Allow-Methods", "PUT, GET, POST, DELETE, OPTIONS");
                 Context.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, x-requested-with, Authorization, Accept, Origin");
             };
-            Get["/"] = _ => { return new JavaScriptSerializer().Serialize(this.getData()); };
-        }
-        ~Timing()
-        {
-            this.telemetryBuffer.Disconnect();
-            this.scoringBuffer.Disconnect();
-            this.rulesBuffer.Disconnect();
-            this.extendedBuffer.Disconnect();
+            Get["/"] = _ => {
+                return new JavaScriptSerializer().Serialize(this.getData()); };
         }
         public string GetEntries(string uri)
         {
@@ -88,12 +68,14 @@ namespace LiveTiming
         {
             ApiResponse res = new ApiResponse();
             Console.Clear();
-            this.extendedBuffer.GetMappedData(ref extended);
-            this.scoringBuffer.GetMappedData(ref scoring);
-            this.telemetryBuffer.GetMappedData(ref telemetry);
-            this.rulesBuffer.GetMappedData(ref rules);
-            
-            //endet
+            Program.extendedBuffer.GetMappedData(ref Program.extended);
+            Program.scoringBuffer.GetMappedData(ref Program.scoring);
+            Program.telemetryBuffer.GetMappedData(ref Program.telemetry);
+            Program.rulesBuffer.GetMappedData(ref Program.rules);
+
+            var scoring = Program.scoring;
+            var telemetry = Program.telemetry;
+            var rules = Program.rules;
             res.Session = new LiveTiming.Session
             {
                 MaxLaps = scoring.mScoringInfo.mMaxLaps,
@@ -101,7 +83,9 @@ namespace LiveTiming
                 CurrentTime = Math.Floor(scoring.mScoringInfo.mCurrentET),
                 CurrentLaps = 0,
                 YellowFlags = new bool[3],
-                IsRace = scoring.mScoringInfo.mSession >= 10 && scoring.mScoringInfo.mSession <= 13
+                IsRace = scoring.mScoringInfo.mSession >= 10 && scoring.mScoringInfo.mSession <= 13,
+                IsSessionStarted = scoring.mScoringInfo.mGamePhase == 5,
+                IsVCY = scoring.mScoringInfo.mGamePhase == 6,
             };
             for (int i = 0; i < 3; i++)
             {
@@ -115,6 +99,7 @@ namespace LiveTiming
                 Console.WriteLine("Flag {0}", (rF2YellowFlagState)flag);
 
             }
+
             List<Entry> entries = new List<Entry>();
             for (int i = 0; i < scoring.mScoringInfo.mNumVehicles; ++i)
             {
@@ -149,6 +134,25 @@ namespace LiveTiming
                         format = driverEntry["driverNumberFormat"].ToString();
                     }
                 }
+                TimeSpan diff = TimeSpan.FromSeconds(vehicle.mTimeBehindNext);
+                String diffString = diff.ToString();
+                String bestLapString = TimeSpan.FromSeconds(vehicle.mBestLapTime).ToString(@"mm\:ss\:fff");
+                String lastLapString = TimeSpan.FromSeconds(vehicle.mLastLapTime).ToString(@"mm\:ss\:fff");
+
+                if (diff.TotalHours < 1)
+                {
+                    if (diff.TotalMinutes < 1)
+                    {
+                        diffString = diff.ToString(@"ss\:fff");
+                    } else
+                    {
+                        diffString = diff.ToString(@"mm\:ss\:fff");
+                    }
+                }
+
+                diffString = String.Format("+ {0}", diffString);
+                int positionDifference = Program.lastResponse != null ? vehicle.mPlace - Program.lastResponse.Drivers.First(d => d.SlotID == vehicle.mID).Position : 0;
+                Console.Write(positionDifference);
                 Entry entry = new Entry
                 {
                     SlotID = vehicle.mID,
@@ -164,6 +168,7 @@ namespace LiveTiming
                     RearTires = this.GetStringFromBytes(vehicleTelementry.mRearTireCompoundName),
                     PitState = Constants.PitStates[vehicle.mPitState],
                     TimeBehind = vehicle.mTimeBehindNext,
+                    TimeBehindString = diffString,
                     LapsBehind = vehicle.mLapsBehindNext,
                     Stops = vehicle.mNumPitstops,
                     Status = Constants.Status[vehicle.mFinishStatus],
@@ -182,13 +187,43 @@ namespace LiveTiming
                     },
                     BestLap = vehicle.mBestLapTime,
                     LastLap = vehicle.mLastLapTime,
-                    Laps = vehicle.mTotalLaps
+                    LastLapString = lastLapString,
+                    BestLapString = bestLapString,
+                    Laps = vehicle.mTotalLaps,
+                    CurrentSessionPositionDifference = positionDifference
                 };
                 if (entry.Position == 1)
                 {
                     res.Session.CurrentLaps = entry.Laps;
                 }
                 entries.Add(entry);
+            }
+            // Set fastest lap
+            Entry fastestDriver = entries.First(d => d.BestLap == entries.Min(e => e.BestLap));
+            entries.ForEach(e =>
+            {
+                e.BestLapDelta = e.BestLap - fastestDriver.BestLap;
+                TimeSpan diff = TimeSpan.FromSeconds(e.BestLapDelta);
+                if (diff.TotalMinutes < 1.0)
+                {
+                    e.BestLapDeltaString = "+ " + diff.ToString(@"ss\:fff");
+                }
+                else
+                {
+                    e.BestLapDeltaString = "+ " + diff.ToString(@"mm\:ss\:fff");
+                }
+            });
+
+            if (res.Session.MaxLaps == int.MaxValue)
+            {
+                TimeSpan current = TimeSpan.FromSeconds(Math.Floor(scoring.mScoringInfo.mCurrentET));
+                TimeSpan max = TimeSpan.FromSeconds(Math.Floor(scoring.mScoringInfo.mEndET - Constants.MAXTIMECOUNTDOWN));
+                res.Session.SessionLeftString = String.Format("{0}/ {1}", current, max);
+            }
+            else
+            {
+                res.Session.CurrentLaps = entries.Max(e => e.Laps);
+                res.Session.SessionLeftString = String.Format("{0}/ {1}", res.Session.CurrentLaps, res.Session.MaxLaps);
             }
             res.Drivers = entries.ToArray();
             res.RaceOverlayControlSet = this.parsedJSON["controlSet"].ToString();
@@ -220,19 +255,19 @@ namespace LiveTiming
                 }
             }
 
-            res.SlotId = this.lastResponse != null && res.SlotId == 0 ? this.lastResponse.SlotId : res.SlotId;
+            res.SlotId = Program.lastResponse != null && res.SlotId == 0 ? Program.lastResponse.SlotId : res.SlotId;
             res.CameraId = Convert.ToInt32(this.parsedJSON["cameraId"].ToString());
-            if (!driverFound && this.lastResponse != null)
+            if (!driverFound && Program.lastResponse != null)
             {
-                res.SlotId = this.lastResponse.SlotId;
-                res.CameraId = this.lastResponse.CameraId;
-                res.CommandId = this.lastResponse.CameraId;
+                res.SlotId = Program.lastResponse.SlotId;
+                res.CameraId = Program.lastResponse.CameraId;
+                res.CommandId = Program.lastResponse.CameraId;
             }
             // Write control file for rfactor plugin
             // TODO: ADD A PROPER TIMEOUT
             try
             {
-                if (this.lastResponse == null || this.lastResponse.CameraId != res.CameraId || this.lastResponse.SlotId != res.SlotId)
+                if (Program.lastResponse == null || Program.lastResponse.CameraId != res.CameraId || Program.lastResponse.SlotId != res.SlotId)
                 {
                     string[] lines = { res.SlotId.ToString(), res.CameraId.ToString() };
                     String path = Path.Combine(Path.GetTempPath(), "cameraslots.txt");
@@ -243,7 +278,7 @@ namespace LiveTiming
             {
 
             }
-            this.lastResponse = res;
+            Program.lastResponse = res;
             return res;
         }
         private string GetStringFromBytes(byte[] bytes)

@@ -14,5 +14,8 @@ namespace LiveTiming
         public double MaxTime { get; set; }
         public double CurrentTime { get; set; }
         public bool IsRace { get; set; }
+        public string SessionLeftString { get; set; }
+        public bool IsSessionStarted { get; set; }
+        public bool IsVCY { get; set; }
     }
 }
