@@ -32,9 +32,15 @@ namespace LiveTiming
         public string BestLapString { get; set; }
         public double BestLapDelta { get; set; }
         public string BestLapDeltaString { get; set; }
+        public string CurrentLapString { get; set; }
         public String VehicleName { get; set; }
         public int Number { get; set; }
         public String NumberFormat { get; set; }
+        public String FormattedNumber { get; set; }
         public int CurrentSessionPositionDifference { get; set; }
+
+        // Problems
+        public bool HasHeatingProblem { get; set;  }
+        public bool HasLostParts { get; set; }
     }
 }

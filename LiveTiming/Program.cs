@@ -25,11 +25,11 @@ namespace LiveTiming
         public static ApiResponse lastResponse;
         static void Main(string[] args)
         {
-                telemetryBuffer.Connect();
-                scoringBuffer.Connect();
-                rulesBuffer.Connect();
-                extendedBuffer.Connect();
-                Timing timing = new Timing();
+            telemetryBuffer.Connect();
+            scoringBuffer.Connect();
+            rulesBuffer.Connect();
+            extendedBuffer.Connect();
+            Timing timing = new Timing();
 
             using (var host = new NancyHost(new Uri("http://localhost:8080")))
             {

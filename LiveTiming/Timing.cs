@@ -134,6 +134,7 @@ namespace LiveTiming
                         format = driverEntry["driverNumberFormat"].ToString();
                     }
                 }
+
                 TimeSpan diff = TimeSpan.FromSeconds(vehicle.mTimeBehindNext);
                 String diffString = diff.ToString();
                 String bestLapString = TimeSpan.FromSeconds(vehicle.mBestLapTime).ToString(@"mm\:ss\:fff");
@@ -160,6 +161,7 @@ namespace LiveTiming
                     VehicleName = vehicleNameParts.Length > 1 ? vehicleNameParts[0] : vehicleName,
                     NumberFormat = format,
                     Number = number,
+                    FormattedNumber = String.Format(format, number),
                     FirstName = nameParts.Length > 1 ? nameParts[0] : "",
                     LastName = nameParts.Length > 1 ? nameParts[1] : nameParts[0],
                     Position = vehicle.mPlace,
@@ -172,6 +174,9 @@ namespace LiveTiming
                     LapsBehind = vehicle.mLapsBehindNext,
                     Stops = vehicle.mNumPitstops,
                     Status = Constants.Status[vehicle.mFinishStatus],
+                    HasHeatingProblem = vehicleTelementry.mOverheating != 0,
+                    HasLostParts = vehicleTelementry.mDetached !=0,
+                    CurrentLapString = TimeSpan.FromSeconds(res.Session.CurrentTime - vehicleTelementry.mLapStartET).ToString(@"mm\:ss\:fff"),
                     PositionDifference = vehicle.mQualification - vehicle.mPlace,
                     LastSectorTimes = new double[]
                     {
