@@ -25,7 +25,7 @@ namespace LiveTiming
             "DNF",
             "DQ"
         };
-        public static String PADDOCKURL = "http://localhost:8000/api/entries/2";
+        public static String PADDOCKURL = "http://paddock.0fury.de/api/entries/2";
         public static int MAXTIMECOUNTDOWN = 30;
     }
 }

@@ -85,7 +85,7 @@ namespace LiveTiming
                 YellowFlags = new bool[3],
                 IsRace = scoring.mScoringInfo.mSession >= 10 && scoring.mScoringInfo.mSession <= 13,
                 IsSessionStarted = scoring.mScoringInfo.mGamePhase == 5,
-                IsVCY = scoring.mScoringInfo.mGamePhase == 6,
+                IsVCY = scoring.mScoringInfo.mGamePhase == 6
             };
             for (int i = 0; i < 3; i++)
             {
@@ -233,6 +233,7 @@ namespace LiveTiming
             res.Drivers = entries.ToArray();
             res.RaceOverlayControlSet = this.parsedJSON["controlSet"].ToString();
             res.CommandId = Convert.ToInt32(this.parsedJSON["commandId"]);
+            res.Session.IsSessionPaused = res.RaceOverlayControlSet.IndexOf("pause") != -1;
             // Translate the slot id (wich means the position) to the proper rfactor 2 id:
             bool driverFound = false;
             if (res.RaceOverlayControlSet.IndexOf("currentDriver") != -1)

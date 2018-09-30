@@ -16,6 +16,7 @@ namespace LiveTiming
         public bool IsRace { get; set; }
         public string SessionLeftString { get; set; }
         public bool IsSessionStarted { get; set; }
+        public bool IsSessionPaused { get; set; }
         public bool IsVCY { get; set; }
     }
 }
